@@ -1,5 +1,4 @@
 <?php
-
 /**
  * Plugin Name: Job Importer
  * Description: Imports jobs from a JSON feed into WordPress posts.
@@ -10,6 +9,9 @@
 // Include necessary files
 require_once( plugin_dir_path( __FILE__ ) . 'includes/job-importer-settings.php' );
 require_once( plugin_dir_path( __FILE__ ) . 'includes/job-importer-functions.php' );
+require_once( plugin_dir_path( __FILE__ ) . 'includes/job-importer-menu.php' );
+require_once( plugin_dir_path( __FILE__ ) . 'includes/job-importer-page.php' );
+
 
 // Register settings page
 add_action( 'admin_menu', 'job_importer_settings_page' );
@@ -32,31 +34,3 @@ function job_importer_deactivate() {
 
 // Hook for daily import
 add_action( 'job_importer_daily_import', 'job_importer_import_jobs' );
-
-// Add button to run import manually
-add_action( 'admin_notices', 'job_importer_manual_import_button' );
-function job_importer_manual_import_button() {
-    ?>
-    <div class="notice notice-info">
-        <p>
-            <a href="<?php echo esc_url( add_query_arg( 'job_importer_run', 'true' ) ); ?>" class="button button-primary">Run Job Import</a>
-        </p>
-    </div>
-    <?php
-}
-
-// Run manual import if button is clicked
-if ( isset( $_GET['job_importer_run'] ) && $_GET['job_importer_run'] === 'true' ) {
-    job_importer_import_jobs();
-
-    // Display a success message
-    add_action( 'admin_notices', 'job_importer_success_message' );
-}
-
-function job_importer_success_message() {
-    ?>
-    <div class="notice notice-success is-dismissible">
-        <p>Jobs imported successfully!</p>
-    </div>
-    <?php
-}

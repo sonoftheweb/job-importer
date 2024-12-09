@@ -2,8 +2,16 @@
 
 // Function to import jobs
 function job_importer_import_jobs() {
-    // Get the feed URL from settings
-    $feed_url = get_option( 'job_importer_feed_url', 'https://www.lifemark.ca/api/json/adp-jobs' );
+    global $wpdb;
+
+    // Get the feed URL from the saved setting
+    $feed_url = get_option( 'job_importer_feed_url' );
+
+    // If the feed URL is not set, don't proceed
+    if ( empty( $feed_url ) ) {
+        error_log( 'Job Importer Error: Feed URL is not set.' );
+        return;
+    }
 
     // Fetch the JSON feed
     $response = wp_remote_get( $feed_url );
@@ -49,7 +57,22 @@ function job_importer_import_jobs() {
         // Add the job ID to the array of current job IDs
         $current_job_ids[] = $node['itemId'];
 
-        // Check if the job already exists
+        // Prepare data for the database
+        $job_data = array(
+            'job_id'          => $node['itemId'],
+            'job_title'       => $node['title'],
+            'job_link'        => $node['link'],
+            'job_city'        => isset( $node['jobCity'] ) ? $node['jobCity'] : null,
+            'job_location'    => isset( $node['jobLocation'] ) ? $node['jobLocation'] : null,
+            'job_added_date'  => isset( $node['jobAddedDate'] ) ? date( 'Y-m-d H:i:s', strtotime( $node['jobAddedDate'] ) ) : null,
+            'lang_code'       => $node['langCode'],
+        );
+
+        // Insert or update the job in the database
+        $table_name = $wpdb->prefix . 'job_importer_jobs';
+        $wpdb->replace( $table_name, $job_data );
+
+        // Check if the job already exists in WordPress
         $existing_post = get_page_by_title( $node['itemId'], OBJECT, 'job' );
 
         // Prepare post data
@@ -80,19 +103,24 @@ function job_importer_import_jobs() {
 
 // Function to delete jobs not in the feed
 function job_importer_delete_old_jobs( $current_job_ids ) {
-    // Get all existing job IDs
-    $args = array(
-        'post_type' => 'job',
-        'fields' => 'ids',
-        'posts_per_page' => -1,
-    );
-    $existing_job_ids = get_posts( $args );
+    global $wpdb; // Access the WordPress database object
+
+    // Get all existing job IDs from the database
+    $table_name = $wpdb->prefix . 'job_importer_jobs';
+    $existing_job_ids = $wpdb->get_col( "SELECT job_id FROM $table_name" );
 
     // Find IDs to delete
     $ids_to_delete = array_diff( $existing_job_ids, $current_job_ids );
 
-    // Delete old jobs
-    foreach ( $ids_to_delete as $id ) {
-        wp_delete_post( $id, true );
+    // Delete old jobs from the database and WordPress
+    foreach ( $ids_to_delete as $job_id ) {
+        // Delete from the database
+        $wpdb->delete( $table_name, array( 'job_id' => $job_id ) );
+
+        // Delete from WordPress posts (if they exist)
+        $existing_post = get_page_by_title( $job_id, OBJECT, 'job' );
+        if ( $existing_post ) {
+            wp_delete_post( $existing_post->ID, true );
+        }
     }
 }
